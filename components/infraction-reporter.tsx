@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useRef } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { Upload, Camera, MapPin, Calendar, Clock, AlertTriangle, Send, Loader2, ScanLine } from "lucide-react"
@@ -15,7 +15,6 @@ import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import { createWorker } from "tesseract.js"
 import EXIF from "exif-js"
-import { ImageAreaSelector } from "./image-area-selector"
 
 interface ImageMetadata {
   dateTime?: string
@@ -74,9 +73,7 @@ export default function InfractionReporter() {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
   const [isProcessingOcr, setIsProcessingOcr] = useState<boolean>(false)
   const [ocrConfidence, setOcrConfidence] = useState<number>(0)
-  const [selectedArea, setSelectedArea] = useState<{ x: number; y: number; width: number; height: number } | null>(null)
   const router = useRouter()
-  const canvasRef = useRef<HTMLCanvasElement>(null)
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -135,7 +132,12 @@ export default function InfractionReporter() {
 
       setMetadata(metadata)
 
-      // Move to the area selection step
+      // Process OCR after metadata extraction
+      if (image) {
+        processOCR(image)
+      }
+
+      // Move to next step after metadata extraction
       setStep(2)
     })
   }
@@ -161,13 +163,7 @@ export default function InfractionReporter() {
     return dd
   }
 
-  const handleAreaSelected = (area: { x: number; y: number; width: number; height: number }) => {
-    setSelectedArea(area)
-    console.log("Selected area:", area)
-    processOCR(image as string, area)
-  }
-
-  const processOCR = async (imageData: string, area: { x: number; y: number; width: number; height: number }) => {
+  const processOCR = async (imageData: string) => {
     console.log("Starting OCR processing")
     setIsProcessingOcr(true)
 
@@ -180,15 +176,14 @@ export default function InfractionReporter() {
       })
       console.log("Tesseract parameters set")
 
-      // Crop the image to the selected area
-      const croppedImage = await cropImage(imageData, area)
-      console.log("Image cropped to selected area")
-
-      const { data } = await worker.recognize(croppedImage)
+      const { data } = await worker.recognize(imageData)
       console.log("OCR recognition completed")
       logObject("OCR full result", data)
 
-      const lines = {}
+      const lines = data.lines.filter(
+        (line) => line.text.length >= 5 && line.text.length <= 8 && /^[A-Z0-9]+$/.test(line.text.replace(/\s/g, "")),
+      )
+      console.log("Filtered OCR lines:", lines)
 
       if (lines.length > 0) {
         const bestMatch = lines.sort((a, b) => b.confidence - a.confidence)[0]
@@ -196,49 +191,23 @@ export default function InfractionReporter() {
         setLicensePlate(bestMatch.text.replace(/\s/g, ""))
         setOcrConfidence(bestMatch.confidence)
 
+
       } else {
         console.log("No valid license plate detected")
-
       }
 
       await worker.terminate()
       console.log("Tesseract worker terminated")
     } catch (error) {
       console.error("Error en OCR:", error)
+
     } finally {
       setIsProcessingOcr(false)
-      setStep(3)
     }
-  }
-
-  const cropImage = (
-    imageData: string,
-    area: { x: number; y: number; width: number; height: number },
-  ): Promise<string> => {
-    return new Promise((resolve) => {
-      const img = new window.Image()  
-      img.onload = () => {
-        const canvas = document.createElement("canvas")
-        const ctx = canvas.getContext("2d")
-        if (!ctx) {
-          throw new Error("Could not get 2D context")
-        }
-        canvas.width = area.width
-        canvas.height = area.height
-        ctx.drawImage(img, area.x, area.y, area.width, area.height, 0, 0, area.width, area.height)
-        resolve(canvas.toDataURL())
-      }
-      img.src = imageData
-    })
   }
 
   const handleSubmit = async () => {
     if (!image || !selectedInfraction || !licensePlate) {
-      toast({
-        title: "Información incompleta",
-        description: "Por favor, complete todos los campos requeridos antes de enviar.",
-        variant: "destructive",
-      })
       return
     }
 
@@ -261,11 +230,6 @@ export default function InfractionReporter() {
       // Simulate API call
       await new Promise((resolve) => setTimeout(resolve, 1500))
 
-      toast({
-        title: "Reporte enviado con éxito",
-        description: "Su reporte de infracción ha sido enviado para procesamiento.",
-      })
-
       // Reset form
       setImage(null)
       setImageFile(null)
@@ -276,11 +240,6 @@ export default function InfractionReporter() {
       setOcrConfidence(0)
       setStep(1)
     } catch (error) {
-      toast({
-        title: "Error al enviar el reporte",
-        description: "Hubo un problema al enviar su reporte. Por favor, intente nuevamente.",
-        variant: "destructive",
-      })
     } finally {
       setIsSubmitting(false)
     }
@@ -340,16 +299,6 @@ export default function InfractionReporter() {
         )}
 
         {step === 2 && (
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Seleccione el área de la placa</h3>
-            <p className="text-sm text-muted-foreground">
-              Dibuje un rectángulo alrededor de la placa del vehículo para mejorar la precisión del reconocimiento.
-            </p>
-            {image && <ImageAreaSelector imageUrl={image} onAreaSelected={handleAreaSelected} />}
-          </div>
-        )}
-
-        {step === 3 && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="relative h-48 md:h-full">
@@ -457,22 +406,22 @@ export default function InfractionReporter() {
         )}
       </CardContent>
       <CardFooter className="flex justify-between">
-        {step > 1 && (
-          <Button variant="outline" onClick={() => setStep(step - 1)}>
-            Atrás
-          </Button>
-        )}
-        {step === 3 && (
-          <Button onClick={handleSubmit} disabled={isSubmitting || !selectedInfraction || !licensePlate}>
-            {isSubmitting ? (
-              <>Procesando...</>
-            ) : (
-              <>
-                <Send className="mr-2 h-4 w-4" />
-                Enviar Reporte
-              </>
-            )}
-          </Button>
+        {step === 2 && (
+          <>
+            <Button variant="outline" onClick={() => setStep(1)}>
+              Atrás
+            </Button>
+            <Button onClick={handleSubmit} disabled={isSubmitting || !selectedInfraction || !licensePlate}>
+              {isSubmitting ? (
+                <>Procesando...</>
+              ) : (
+                <>
+                  <Send className="mr-2 h-4 w-4" />
+                  Enviar Reporte
+                </>
+              )}
+            </Button>
+          </>
         )}
       </CardFooter>
     </Card>
