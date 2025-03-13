@@ -180,21 +180,21 @@ export default function InfractionReporter() {
       console.log("OCR recognition completed")
       logObject("OCR full result", data)
 
-      const lines = data.lines.filter(
-        (line) => line.text.length >= 5 && line.text.length <= 8 && /^[A-Z0-9]+$/.test(line.text.replace(/\s/g, "")),
-      )
-      console.log("Filtered OCR lines:", lines)
+      // const lines = data.lines.filter(
+      //   (line) => line.text.length >= 5 && line.text.length <= 8 && /^[A-Z0-9]+$/.test(line.text.replace(/\s/g, "")),
+      // )
+      // console.log("Filtered OCR lines:", lines)
 
-      if (lines.length > 0) {
-        const bestMatch = lines.sort((a, b) => b.confidence - a.confidence)[0]
-        console.log("Best license plate match:", bestMatch)
-        setLicensePlate(bestMatch.text.replace(/\s/g, ""))
-        setOcrConfidence(bestMatch.confidence)
+      // if (lines.length > 0) {
+      //   const bestMatch = lines.sort((a, b) => b.confidence - a.confidence)[0]
+      //   console.log("Best license plate match:", bestMatch)
+      //   setLicensePlate(bestMatch.text.replace(/\s/g, ""))
+      //   setOcrConfidence(bestMatch.confidence)
 
 
-      } else {
-        console.log("No valid license plate detected")
-      }
+      // } else {
+      //   console.log("No valid license plate detected")
+      // }
 
       await worker.terminate()
       console.log("Tesseract worker terminated")
