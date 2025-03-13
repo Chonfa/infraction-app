@@ -12,7 +12,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Textarea } from "@/components/ui/textarea"
-import useToast from "react-hook-toast";
 import { cn } from "@/lib/utils"
 import { createWorker } from "tesseract.js"
 import EXIF from "exif-js"
@@ -76,7 +75,6 @@ export default function InfractionReporter() {
   const [isProcessingOcr, setIsProcessingOcr] = useState<boolean>(false)
   const [ocrConfidence, setOcrConfidence] = useState<number>(0)
   const [selectedArea, setSelectedArea] = useState<{ x: number; y: number; width: number; height: number } | null>(null)
-  const { toast } = useToast()
   const router = useRouter()
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -190,10 +188,7 @@ export default function InfractionReporter() {
       console.log("OCR recognition completed")
       logObject("OCR full result", data)
 
-      const lines = data.lines.filter(
-        (line) => line.text.length >= 5 && line.text.length <= 8 && /^[A-Z0-9]+$/.test(line.text.replace(/\s/g, "")),
-      )
-      console.log("Filtered OCR lines:", lines)
+      const lines = {}
 
       if (lines.length > 0) {
         const bestMatch = lines.sort((a, b) => b.confidence - a.confidence)[0]
@@ -201,28 +196,15 @@ export default function InfractionReporter() {
         setLicensePlate(bestMatch.text.replace(/\s/g, ""))
         setOcrConfidence(bestMatch.confidence)
 
-        toast({
-          title: "Placa detectada",
-          description: `Se ha detectado la placa: ${bestMatch.text}`,
-        })
       } else {
         console.log("No valid license plate detected")
-        toast({
-          title: "No se pudo detectar la placa",
-          description: "Por favor, ingrese la placa manualmente",
-          variant: "destructive",
-        })
+
       }
 
       await worker.terminate()
       console.log("Tesseract worker terminated")
     } catch (error) {
       console.error("Error en OCR:", error)
-      toast({
-        title: "Error en el procesamiento OCR",
-        description: "No se pudo leer la placa automáticamente. Por favor, ingrésela manualmente.",
-        variant: "destructive",
-      })
     } finally {
       setIsProcessingOcr(false)
       setStep(3)
@@ -234,7 +216,7 @@ export default function InfractionReporter() {
     area: { x: number; y: number; width: number; height: number },
   ): Promise<string> => {
     return new Promise((resolve) => {
-      const img = new Image()
+      const img = new window.Image()  
       img.onload = () => {
         const canvas = document.createElement("canvas")
         const ctx = canvas.getContext("2d")
