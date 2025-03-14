@@ -15,12 +15,14 @@ import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import { createWorker } from "tesseract.js"
 import EXIF from "exif-js"
+import { reverseGeocode } from "@/services/geocoding-service"
 
 interface ImageMetadata {
   dateTime?: string
   location?: {
     latitude?: number
     longitude?: number
+    direccion?: string
   }
 }
 
@@ -73,6 +75,10 @@ export default function InfractionReporter() {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
   const [isProcessingOcr, setIsProcessingOcr] = useState<boolean>(false)
   const [ocrConfidence, setOcrConfidence] = useState<number>(0)
+
+  const [isGeocodingLoading, setIsGeocodingLoading] = useState<boolean>(false)
+
+
   const router = useRouter()
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -100,7 +106,7 @@ export default function InfractionReporter() {
     console.log("File type:", file.type)
     console.log("File size:", file.size, "bytes")
 
-    EXIF.getData(file as any, function (this: any) {
+    EXIF.getData(file as any, async function (this: any) {
       console.log("EXIF data extracted")
 
       const allTags = EXIF.getAllTags(this)
@@ -117,20 +123,52 @@ export default function InfractionReporter() {
 
       let latitude, longitude
 
+      let newMetadata: ImageMetadata = {
+        dateTime: dateTime ? formatExifDate(dateTime) : undefined,
+        location: undefined,
+      }
+
       if (latitudeValue && longitudeValue) {
         latitude = convertDMSToDD(latitudeValue, latitudeRef)
         longitude = convertDMSToDD(longitudeValue, longitudeRef)
         console.log("Converted coordinates:", { latitude, longitude })
       }
 
-      const metadata: ImageMetadata = {
-        dateTime: dateTime ? formatExifDate(dateTime) : undefined,
-        location: latitude && longitude ? { latitude, longitude } : undefined,
+      // Obtener la dirección a partir de las coordenadas
+      if (latitude && longitude) {
+        setIsGeocodingLoading(true)
+        try {
+          const geocodeResult = reverseGeocode(latitude, longitude)
+          console.log("Geocoding result:", geocodeResult)
+
+          newMetadata = {
+            dateTime: dateTime ? formatExifDate(dateTime) : undefined,
+            location: {
+              latitude,
+              longitude,
+              direccion: (await geocodeResult).direccion,
+            },
+          }
+        } catch (error) {
+          console.error("Error during geocoding:", error)
+          newMetadata = {
+            dateTime: dateTime ? formatExifDate(dateTime) : undefined,
+            location: { latitude, longitude },
+          }
+        } finally {
+          setIsGeocodingLoading(false)
+        }
       }
 
-      logObject("Extracted metadata", metadata)
+//      const metadata: ImageMetadata = {
+//        dateTime: dateTime ? formatExifDate(dateTime) : undefined,
+//        location: latitude && longitude ? { latitude, longitude } : undefined,
+//      }
 
-      setMetadata(metadata)
+      logObject("Extracted metadata", metadata)
+      logObject("New metadata", newMetadata)
+
+      setMetadata(newMetadata)
 
       // Process OCR after metadata extraction
       if (image) {
@@ -326,9 +364,18 @@ export default function InfractionReporter() {
                       <span>Ubicación:</span>
                     </div>
                     <div>
-                      {metadata.location?.latitude
-                        ? `${metadata.location.latitude.toFixed(4)}, ${metadata.location.longitude?.toFixed(4)}`
-                        : "No disponible"}
+                      {isGeocodingLoading ? (
+                        <div className="flex items-center">
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          <span>Obteniendo dirección...</span>
+                        </div>
+                      ) : metadata?.location?.direccion ? (
+                        metadata.location.direccion
+                      ) : metadata?.location?.latitude ? (
+                        `${metadata.location.latitude.toFixed(4)}, ${metadata.location.longitude?.toFixed(4)}`
+                      ) : (
+                        "No disponible"
+                      )}
                     </div>
                   </div>
                 </div>
