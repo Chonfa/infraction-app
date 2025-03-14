@@ -383,13 +383,19 @@ export default function InfractionReporter() {
                       <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
                       <span>Fecha/Hora:</span>
                     </div>
-                    <div onClick={() => copyToClipboard(metadata?.dateTime, "Fecha/Hora")} >{metadata.dateTime || "No disponible"}</div>
+                    <div className={cn(
+                        "flex items-center gap-1",
+                        metadata?.dateTime && "cursor-pointer hover:text-primary transition-colors group",
+                      )} onClick={() => copyToClipboard(metadata?.dateTime, "Fecha/Hora")} >{metadata.dateTime || "No disponible"}</div>
 
                     <div className="flex items-center">
                       <MapPin className="h-4 w-4 mr-2 text-muted-foreground" />
                       <span>Ubicación:</span>
                     </div>
-                    <div onClick={() => copyToClipboard(metadata?.location?.direccion, "direccion")} >
+                    <div className={cn(
+                        "flex items-center gap-1",
+                        metadata?.location?.direccion && "cursor-pointer hover:text-primary transition-colors group",
+                      )} onClick={() => copyToClipboard(metadata?.location?.direccion, "direccion")} >
                       {isGeocodingLoading ? (
                         <div className="flex items-center" >
                           <Loader2 className="h-3 w-3 mr-1 animate-spin" />
