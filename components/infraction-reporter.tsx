@@ -5,7 +5,7 @@ import type React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
-import { Upload, Camera, MapPin, Calendar, Clock, AlertTriangle, Send, Loader2, ScanLine } from "lucide-react"
+import { Upload, Camera, MapPin, Calendar, Clock, AlertTriangle, Send, Loader2, ScanLine, Copy, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -20,7 +20,8 @@ import { toast } from "sonner"
 import { Toaster } from "@/components/ui/sonner"
 
 interface ImageMetadata {
-  dateTime?: string
+  date?: string
+  time?: string
   location?: {
     latitude?: number
     longitude?: number
@@ -127,7 +128,8 @@ export default function InfractionReporter() {
       let latitude, longitude
 
       let newMetadata: ImageMetadata = {
-        dateTime: dateTime ? formatExifDate(dateTime) : undefined,
+        date: undefined,
+        time: undefined,
         location: undefined,
       }
 
@@ -144,8 +146,10 @@ export default function InfractionReporter() {
           const geocodeResult = reverseGeocode(latitude, longitude)
           console.log("Geocoding result:", geocodeResult)
 
+          const formattedDateTime = dateTime ? formatExifDate(dateTime) : { date: undefined, time: undefined }
           newMetadata = {
-            dateTime: dateTime ? formatExifDate(dateTime) : undefined,
+            date: formattedDateTime.date,
+            time: formattedDateTime.time,
             location: {
               latitude,
               longitude,
@@ -154,8 +158,10 @@ export default function InfractionReporter() {
           }
         } catch (error) {
           console.error("Error during geocoding:", error)
+          const formattedDateTime = dateTime ? formatExifDate(dateTime) : { date: undefined, time: undefined }
           newMetadata = {
-            dateTime: dateTime ? formatExifDate(dateTime) : undefined,
+            date: formattedDateTime.date,
+            time: formattedDateTime.time,
             location: { latitude, longitude },
           }
         } finally {
@@ -206,11 +212,16 @@ export default function InfractionReporter() {
   }
 
 
-  const formatExifDate = (dateTimeStr: string): string => {
+  const formatExifDate = (dateTimeStr: string): { date: string; time: string } => {
     // EXIF date format: "YYYY:MM:DD HH:MM:SS"
     const [date, time] = dateTimeStr.split(" ")
     const [year, month, day] = date.split(":")
-    return `${day}/${month}/${year} ${time}`
+    const [hours, minutes, seconds] = time.split(":")
+    
+    return {
+      date: `${day}/${month}/${year}`,
+      time: `${hours}:${minutes}`,
+    }
   }
 
   const convertDMSToDD = (dms: number[], ref: string) => {
@@ -381,32 +392,94 @@ export default function InfractionReporter() {
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div className="flex items-center">
                       <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
-                      <span>Fecha/Hora:</span>
+                      <span>Fecha:</span>
                     </div>
-                    <div className={cn(
+                    <div
+                      className={cn(
                         "flex items-center gap-1",
-                        metadata?.dateTime && "cursor-pointer hover:text-primary transition-colors group",
-                      )} onClick={() => copyToClipboard(metadata?.dateTime, "Fecha/Hora")} >{metadata.dateTime || "No disponible"}</div>
+                        metadata?.date && "cursor-pointer hover:text-primary transition-colors group",
+                      )}
+                      onClick={() => copyToClipboard(metadata?.date, "Fecha")}
+                    >
+                      <span>{metadata?.date || "No disponible"}</span>
+                      {metadata?.date && (
+                        <span className="opacity-0 group-hover:opacity-100 transition-opacity">
+                          {copiedField === "Fecha" ? (
+                            <Check className="h-3 w-3 text-green-500" />
+                          ) : (
+                            <Copy className="h-3 w-3" />
+                          )}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center">
+                      <Clock className="h-4 w-4 mr-2 text-muted-foreground" />
+                      <span>Hora:</span>
+                    </div>
+                    <div
+                      className={cn(
+                        "flex items-center gap-1",
+                        metadata?.time && "cursor-pointer hover:text-primary transition-colors group",
+                      )}
+                      onClick={() => copyToClipboard(metadata?.time, "Hora")}
+                    >
+                      <span>{metadata?.time || "No disponible"}</span>
+                      {metadata?.time && (
+                        <span className="opacity-0 group-hover:opacity-100 transition-opacity">
+                          {copiedField === "Hora" ? (
+                            <Check className="h-3 w-3 text-green-500" />
+                          ) : (
+                            <Copy className="h-3 w-3" />
+                          )}
+                        </span>
+                      )}
+                    </div>
 
                     <div className="flex items-center">
                       <MapPin className="h-4 w-4 mr-2 text-muted-foreground" />
                       <span>Ubicación:</span>
                     </div>
-                    <div className={cn(
-                        "flex items-center gap-1",
-                        metadata?.location?.direccion && "cursor-pointer hover:text-primary transition-colors group",
-                      )} onClick={() => copyToClipboard(metadata?.location?.direccion, "direccion")} >
+                    <div>
                       {isGeocodingLoading ? (
-                        <div className="flex items-center" >
+                        <div className="flex items-center">
                           <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                           <span>Obteniendo dirección...</span>
                         </div>
-                      ) : metadata?.location?.direccion ? (
-                        metadata.location.direccion
-                      ) : metadata?.location?.latitude ? (
-                        `${metadata.location.latitude.toFixed(4)}, ${metadata.location.longitude?.toFixed(4)}`
                       ) : (
-                        "No disponible"
+                        <div
+                          className={cn(
+                            "flex items-center gap-1",
+                            (metadata?.location?.direccion || metadata?.location?.latitude) &&
+                              "cursor-pointer hover:text-primary transition-colors group",
+                          )}
+                          onClick={() =>
+                            copyToClipboard(
+                              metadata?.location?.direccion ||
+                                (metadata?.location?.latitude
+                                  ? `${metadata.location.latitude.toFixed(4)}, ${metadata.location.longitude?.toFixed(4)}`
+                                  : undefined),
+                              "Ubicación",
+                            )
+                          }
+                        >
+                          <span>
+                            {metadata?.location?.direccion
+                              ? metadata.location.direccion
+                              : metadata?.location?.latitude
+                                ? `${metadata.location.latitude.toFixed(4)}, ${metadata.location.longitude?.toFixed(4)}`
+                                : "No disponible"}
+                          </span>
+                          {(metadata?.location?.direccion || metadata?.location?.latitude) && (
+                            <span className="opacity-0 group-hover:opacity-100 transition-opacity">
+                              {copiedField === "Ubicación" ? (
+                                <Check className="h-3 w-3 text-green-500" />
+                              ) : (
+                                <Copy className="h-3 w-3" />
+                              )}
+                            </span>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
