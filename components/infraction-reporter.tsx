@@ -16,6 +16,8 @@ import { cn } from "@/lib/utils"
 import { createWorker } from "tesseract.js"
 import EXIF from "exif-js"
 import { reverseGeocode } from "@/services/geocoding-service"
+import { toast } from "sonner"
+import { Toaster } from "@/components/ui/sonner"
 
 interface ImageMetadata {
   dateTime?: string
@@ -77,6 +79,7 @@ export default function InfractionReporter() {
   const [ocrConfidence, setOcrConfidence] = useState<number>(0)
 
   const [isGeocodingLoading, setIsGeocodingLoading] = useState<boolean>(false)
+  const [copiedField, setCopiedField] = useState<string | null>(null)
 
 
   const router = useRouter()
@@ -179,6 +182,29 @@ export default function InfractionReporter() {
       setStep(2)
     })
   }
+
+  const copyToClipboard = (text: string | undefined, field: string) => {
+    if (!text || text === "No disponible") return
+
+    navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        console.log("Copy text: ", text)
+
+        setCopiedField(field)
+
+        toast("Copiado al portapapeles")
+
+        // Resetear el estado después de 2 segundos
+        setTimeout(() => {
+          setCopiedField(null)
+        }, 2000)
+      })
+      .catch((err) => {
+        console.error("Error al copiar al portapapeles:", err)
+      })
+  }
+
 
   const formatExifDate = (dateTimeStr: string): string => {
     // EXIF date format: "YYYY:MM:DD HH:MM:SS"
@@ -357,15 +383,15 @@ export default function InfractionReporter() {
                       <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
                       <span>Fecha/Hora:</span>
                     </div>
-                    <div>{metadata.dateTime || "No disponible"}</div>
+                    <div onClick={() => copyToClipboard(metadata?.dateTime, "Fecha/Hora")} >{metadata.dateTime || "No disponible"}</div>
 
                     <div className="flex items-center">
                       <MapPin className="h-4 w-4 mr-2 text-muted-foreground" />
                       <span>Ubicación:</span>
                     </div>
-                    <div>
+                    <div onClick={() => copyToClipboard(metadata?.location?.direccion, "direccion")} >
                       {isGeocodingLoading ? (
-                        <div className="flex items-center">
+                        <div className="flex items-center" >
                           <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                           <span>Obteniendo dirección...</span>
                         </div>
@@ -471,6 +497,7 @@ export default function InfractionReporter() {
           </>
         )}
       </CardFooter>
+      <Toaster />
     </Card>
   )
 }
