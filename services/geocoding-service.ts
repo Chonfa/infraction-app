@@ -10,7 +10,7 @@ interface GeocodingResult {
   export async function reverseGeocode(lat: number, lng: number): Promise<GeocodingResult> {
     try {
       // URL de la API de normalización de Buenos Aires (versión 4)
-      const url = `https://servicios.usig.buenosaires.gob.ar/normalizar/?lng=${lng}&lat=${lat}`
+      const url = `https://servicios.usig.buenosaires.gob.ar/normalizar/?lng=${lng}&lat=${lat}&tipoResultado=calle_altura_calle_y_calle`
   
       console.log("Consultando API de geocodificación:", url)
   
