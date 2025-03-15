@@ -18,6 +18,7 @@ import EXIF from "exif-js"
 import { reverseGeocode } from "@/services/geocoding-service"
 import { toast } from "sonner"
 import { Toaster } from "@/components/ui/sonner"
+import { recognizeLicensePlate } from "@/services/license-plate-service"
 
 interface ImageMetadata {
   date?: string
@@ -177,6 +178,9 @@ export default function InfractionReporter() {
       logObject("Extracted metadata", metadata)
       logObject("New metadata", newMetadata)
 
+      logObject("image", image)
+
+
       setMetadata(newMetadata)
 
       // Process OCR after metadata extraction
@@ -239,45 +243,30 @@ export default function InfractionReporter() {
   }
 
   const processOCR = async (imageData: string) => {
-    console.log("Starting OCR processing")
+    console.log("Starting OCR processing with fast-plate-ocr")
     setIsProcessingOcr(true)
 
     try {
-      const worker = await createWorker("spa")
-      console.log("Tesseract worker created")
+      // Llamar al servicio de reconocimiento de placas
+      const result = await recognizeLicensePlate(imageData)
+      console.log("License plate recognition result:", result)
 
-      await worker.setParameters({
-        tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
-      })
-      console.log("Tesseract parameters set")
+      if (result.success && result.plate) {
+        setLicensePlate(result.plate)
+        setOcrConfidence(result.confidence || 0)
 
-      const { data } = await worker.recognize(imageData)
-      console.log("OCR recognition completed")
-      logObject("OCR full result", data)
-
-      // const lines = data.lines.filter(
-      //   (line) => line.text.length >= 5 && line.text.length <= 8 && /^[A-Z0-9]+$/.test(line.text.replace(/\s/g, "")),
-      // )
-      // console.log("Filtered OCR lines:", lines)
-
-      // if (lines.length > 0) {
-      //   const bestMatch = lines.sort((a, b) => b.confidence - a.confidence)[0]
-      //   console.log("Best license plate match:", bestMatch)
-      //   setLicensePlate(bestMatch.text.replace(/\s/g, ""))
-      //   setOcrConfidence(bestMatch.confidence)
-
-
-      // } else {
-      //   console.log("No valid license plate detected")
-      // }
-
-      await worker.terminate()
-      console.log("Tesseract worker terminated")
+        toast("Placa detectada",)
+      } else {
+        console.log("No valid license plate detected")
+        toast("No se pudo detectar la placa")
+      }
     } catch (error) {
       console.error("Error en OCR:", error)
-
+      toast("Error en el procesamiento OCR")
     } finally {
       setIsProcessingOcr(false)
+      // Pasar directamente al paso de formulario
+      setStep(2)
     }
   }
 
